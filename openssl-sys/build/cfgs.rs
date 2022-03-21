@@ -1,4 +1,4 @@
-pub fn get(openssl_version: Option<u64>, libressl_version: Option<u64>) -> Vec<&'static str> {
+pub fn get(openssl_version: Option<u64>, libressl_version: Option<u64>, wolfssl_version: Option<u64>) -> Vec<&'static str> {
     let mut cfgs = vec![];
 
     if let Some(libressl_version) = libressl_version {
@@ -33,6 +33,12 @@ pub fn get(openssl_version: Option<u64>, libressl_version: Option<u64>) -> Vec<&
         }
         if libressl_version >= 0x3_03_02_00_0 {
             cfgs.push("libressl332");
+        }
+    } else if let Some(wolfssl_version) = wolfssl_version {
+        cfgs.push("wolfssl");
+
+        if wolfssl_version >= 0x2_05_01_00_0 {
+            cfgs.push("wolfssl251");
         }
     } else {
         let openssl_version = openssl_version.unwrap();

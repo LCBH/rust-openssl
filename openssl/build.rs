@@ -75,4 +75,12 @@ fn main() {
             println!("cargo:rustc-cfg=libressl332");
         }
     }
+
+    if let Ok(version) = env::var("DEP_OPENSSL_WOLFSSL_VERSION_NUMBER") {
+        let version = u64::from_str_radix(&version, 16).unwrap();
+
+        if version >= 0x2_06_01_00_0 {
+            println!("cargo:rustc-cfg=wolfssl261");
+        }
+    }
 }

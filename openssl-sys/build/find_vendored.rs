@@ -1,3 +1,5 @@
+#[cfg(feature = "vendored-wolfssl")]
+use wolfssl_src as openssl_src;
 #[cfg(feature = "vendored-libressl")]
 use libressl_src as openssl_src;
 #[cfg(feature = "vendored-openssl")]

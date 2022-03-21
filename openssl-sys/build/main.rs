@@ -7,6 +7,8 @@ extern crate openssl_src;
 #[cfg(feature = "vendored-libressl")]
 extern crate libressl_src;
 extern crate pkg_config;
+#[cfg(feature = "vendored-wolfssl")]
+extern crate wolfssl_src;
 #[cfg(target_env = "msvc")]
 extern crate vcpkg;
 
@@ -25,6 +27,7 @@ enum Version {
     Openssl11x,
     Openssl10x,
     Libressl,
+    Wolfssl
 }
 
 fn env_inner(name: &str) -> Option<OsString> {
@@ -177,12 +180,14 @@ See rust-openssl README for more information:
     let mut enabled = vec![];
     let mut openssl_version = None;
     let mut libressl_version = None;
+    let mut wolfssl_version = None;
     for line in expanded.lines() {
         let line = line.trim();
 
         let openssl_prefix = "RUST_VERSION_OPENSSL_";
         let new_openssl_prefix = "RUST_VERSION_NEW_OPENSSL_";
         let libressl_prefix = "RUST_VERSION_LIBRESSL_";
+        let wolfssl_prefix = "RUST_VERSION_WOLFSSL_";
         let conf_prefix = "RUST_CONF_";
         if line.starts_with(openssl_prefix) {
             let version = &line[openssl_prefix.len()..];
@@ -193,6 +198,9 @@ See rust-openssl README for more information:
         } else if line.starts_with(libressl_prefix) {
             let version = &line[libressl_prefix.len()..];
             libressl_version = Some(parse_version(version));
+        } else if line.starts_with(wolfssl_prefix) {
+            let version = &line[wolfssl_prefix.len()..];
+            wolfssl_version = Some(parse_version(version));
         } else if line.starts_with(conf_prefix) {
             enabled.push(&line[conf_prefix.len()..]);
         }
@@ -203,7 +211,7 @@ See rust-openssl README for more information:
     }
     println!("cargo:conf={}", enabled.join(","));
 
-    for cfg in cfgs::get(openssl_version, libressl_version) {
+    for cfg in cfgs::get(openssl_version, libressl_version, wolfssl_version) {
         println!("cargo:rustc-cfg={}", cfg);
     }
 
@@ -246,6 +254,45 @@ See rust-openssl README for more information:
         println!("cargo:libressl_version={}{}{}", major, minor, fix);
         println!("cargo:version=101");
         Version::Libressl
+    } else if let Some(wolfssl_version) = wolfssl_version {
+        println!("cargo:wolfssl_version_number={:x}", wolfssl_version);
+
+        let major = (wolfssl_version >> 28) as u8;
+        let minor = (wolfssl_version >> 20) as u8;
+        let fix = (wolfssl_version >> 12) as u8;
+        let (major, minor, fix) = match (major, minor, fix) {
+            (2, 5, 0) => ('2', '5', '0'),
+            (2, 5, 1) => ('2', '5', '1'),
+            (2, 5, 2) => ('2', '5', '2'),
+            (2, 5, _) => ('2', '5', 'x'),
+            (2, 6, 0) => ('2', '6', '0'),
+            (2, 6, 1) => ('2', '6', '1'),
+            (2, 6, 2) => ('2', '6', '2'),
+            (2, 6, _) => ('2', '6', 'x'),
+            (2, 7, _) => ('2', '7', 'x'),
+            (2, 8, 0) => ('2', '8', '0'),
+            (2, 8, 1) => ('2', '8', '1'),
+            (2, 8, _) => ('2', '8', 'x'),
+            (2, 9, 0) => ('2', '9', '0'),
+            (2, 9, _) => ('2', '9', 'x'),
+            (3, 0, 0) => ('3', '0', '0'),
+            (3, 0, 1) => ('3', '0', '1'),
+            (3, 0, _) => ('3', '0', 'x'),
+            (3, 1, 0) => ('3', '1', '0'),
+            (3, 1, _) => ('3', '1', 'x'),
+            (3, 2, 0) => ('3', '2', '0'),
+            (3, 2, 1) => ('3', '2', '1'),
+            (3, 2, _) => ('3', '2', 'x'),
+            (3, 3, 0) => ('3', '3', '0'),
+            (3, 3, 1) => ('3', '3', '1'),
+            (3, 3, _) => ('3', '3', 'x'),
+            _ => version_error(),
+        };
+
+        println!("cargo:wolfssl=true");
+        println!("cargo:wolfssl_version={}{}{}", major, minor, fix);
+        println!("cargo:version=101");
+        Version::Wolfssl
     } else {
         let openssl_version = openssl_version.unwrap();
         println!("cargo:version_number={:x}", openssl_version);
@@ -280,8 +327,8 @@ fn version_error() -> ! {
     panic!(
         "
 
-This crate is only compatible with OpenSSL 1.0.1 through 1.1.1, or LibreSSL 2.5
-through 3.3.x, but a different version of OpenSSL was found. The build is now aborting
+This crate is only compatible with OpenSSL 1.0.1 through 1.1.1, LibreSSL 2.5
+through 3.3.x, or WolfSSL X to Y, but a different version of OpenSSL was found. The build is now aborting
 due to this version mismatch.
 
 "
@@ -345,6 +392,17 @@ fn determine_mode(libdir: &Path, libs: &[&str]) -> &'static str {
             || files.contains(&format!("{}.dll", l))
             || files.contains(&format!("lib{}.dylib", l))
     });
+    for l in libs {
+        println!("Lib: {}.", l);
+        if ! (files.contains(&format!("lib{}.a", l)) || files.contains(&format!("{}.lib", l))) {
+            println!("Missing lib (static): {}.", l);
+        }
+        if ! (files.contains(&format!("lib{}.so", l))
+            || files.contains(&format!("{}.dll", l))
+            || files.contains(&format!("lib{}.dylib", l))) {
+            println!("Missing lib (dynamic): {}.", l);
+        }
+    }
     match (can_static, can_dylib) {
         (true, false) => return "static",
         (false, true) => return "dylib",

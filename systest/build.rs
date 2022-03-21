@@ -33,8 +33,10 @@ fn main() {
     let libressl_version = env::var("DEP_OPENSSL_LIBRESSL_VERSION_NUMBER")
         .ok()
         .map(|v| u64::from_str_radix(&v, 16).unwrap());
-
-    for c in cfgs::get(openssl_version, libressl_version) {
+    let wolfssl_version = env::var("DEP_OPENSSL_WOLFSSL_VERSION_NUMBER")
+        .ok()
+        .map(|v| u64::from_str_radix(&v, 16).unwrap());
+    for c in cfgs::get(openssl_version, libressl_version, wolfssl_version) {
         cfg.cfg(c, None);
     }
 
